@@ -11,55 +11,61 @@ const App = () => {
   const editorRef = useRef(null);
   const aceEditorRef = useRef(null);
 
-  // Remove automatic fullscreen request since it requires user interaction
-  const requestFullscreen = () => {
-    const elem = document.documentElement;
-    try {
-      if (elem.requestFullscreen) {
-        elem.requestFullscreen();
-      } else if (elem.webkitRequestFullscreen) {
-        elem.webkitRequestFullscreen();
-      } else if (elem.msRequestFullscreen) {
-        elem.msRequestFullscreen();
-      }
-    } catch (error) {
-      console.warn('Fullscreen request failed:', error);
-    }
-  };
-
+  // Initialize or destroy Ace editor based on mode
   useEffect(() => {
-    // Initialize Ace editor
-    if (mode === 'code' && !aceEditorRef.current && editorRef.current) {
-      try {
-        aceEditorRef.current = ace.edit(editorRef.current);
-        aceEditorRef.current.setTheme('ace/theme/monokai');
-        aceEditorRef.current.session.setMode('ace/mode/html');
-        aceEditorRef.current.setOptions({
-          fontSize: '14px',
-          showPrintMargin: false,
-          showGutter: true,
-          highlightActiveLine: true,
-          wrap: true
-        });
-      } catch (error) {
-        console.error('Error initializing Ace editor:', error);
-      }
-    }
-  }, [mode]);
-
-  // Update editor content when switching modes or pages
-  useEffect(() => {
-    if (mode === 'code' && currentPage) {
-      // Wait for Ace editor to be initialized
-      setTimeout(() => {
-        if (aceEditorRef.current) {
-          aceEditorRef.current.setValue(currentPage.content || '', -1);
+    if (mode === 'code') {
+      if (!aceEditorRef.current && editorRef.current) {
+        try {
+          aceEditorRef.current = ace.edit(editorRef.current);
+          aceEditorRef.current.setTheme('ace/theme/monokai');
+          aceEditorRef.current.session.setMode('ace/mode/html');
+          aceEditorRef.current.setOptions({
+            fontSize: '14px',
+            showPrintMargin: false,
+            showGutter: true,
+            highlightActiveLine: true,
+            wrap: true
+          });
+          
+          // Set initial content if available
+          if (currentPage?.content) {
+            aceEditorRef.current.setValue(currentPage.content, -1);
+          }
+          
           // Ensure editor is properly sized
           aceEditorRef.current.resize();
+        } catch (error) {
+          console.error('Error initializing Ace editor:', error);
         }
-      }, 100);
+      }
+    } else {
+      // Cleanup editor when switching away from code mode
+      if (aceEditorRef.current) {
+        aceEditorRef.current.destroy();
+        aceEditorRef.current.container.remove();
+        aceEditorRef.current = null;
+      }
     }
-  }, [mode, currentPage]);
+
+    // Cleanup on component unmount
+    return () => {
+      if (aceEditorRef.current) {
+        aceEditorRef.current.destroy();
+        aceEditorRef.current = null;
+      }
+    };
+  }, [mode]);
+
+  // Update editor content when switching pages
+  useEffect(() => {
+    if (currentPage) {
+      setEditorContent(currentPage.content || '');
+      if (mode === 'code' && aceEditorRef.current) {
+        aceEditorRef.current.setValue(currentPage.content || '', -1);
+        aceEditorRef.current.resize();
+      }
+    }
+  }, [currentPage]);
 
   // Subscribe to pages collection
   useEffect(() => {
@@ -106,15 +112,16 @@ const App = () => {
       let contentToSave;
       if (mode === 'code' && aceEditorRef.current) {
         contentToSave = aceEditorRef.current.getValue();
-        // Update the preview content as well
-        setEditorContent(contentToSave);
       } else {
         contentToSave = editorContent;
       }
-        
+      
       await room.collection('page').update(currentPage.id, {
         content: contentToSave
       });
+      
+      // Update the preview content after successful save
+      setEditorContent(contentToSave);
     } catch (error) {
       console.error('Error saving page:', error);
       alert('Failed to save page. Please try again.');
@@ -122,8 +129,10 @@ const App = () => {
   };
 
   const handleModeChange = (newMode) => {
-    if (newMode === 'preview' && mode === 'code' && aceEditorRef.current) {
-      // When switching from code to preview, update the preview content
+    if (newMode === mode) return; // Prevent unnecessary mode changes
+    
+    if (newMode === 'preview' && aceEditorRef.current) {
+      // When switching to preview, update the preview content
       setEditorContent(aceEditorRef.current.getValue());
     }
     setMode(newMode);
@@ -272,7 +281,11 @@ const App = () => {
               )}
               
               {mode === 'code' && currentPage && (
-                <div ref={editorRef} className="code-editor"></div>
+                <div 
+                  ref={editorRef} 
+                  className="code-editor"
+                  key={`editor-${currentPage.id}`} // Force new editor instance on page change
+                ></div>
               )}
               
               {!currentPage && !showNewPageForm && (
