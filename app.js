@@ -8,7 +8,6 @@ const App = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mode, setMode] = useState('preview'); // 'preview' or 'code'
   const [showNewPageForm, setShowNewPageForm] = useState(false);
-  const [pageHistory, setPageHistory] = useState([]); // Add this state for history tracking
   const editorRef = useRef(null);
   const aceEditorRef = useRef(null);
 
@@ -86,21 +85,14 @@ const App = () => {
       throw new Error('Page name is required');
     }
 
-    const sanitizedName = pageName.trim().toLowerCase();
-
-    // Check if page exists by filtering the collection
-    const existingPages = room.collection('page')
-      .filter({ name_lower: sanitizedName })
-      .getList();
-
-    if (existingPages && existingPages.length > 0) {
-      throw new Error('A page with this name already exists');
+    const existingPage = pages.find(p => p.name.toLowerCase() === pageName.toLowerCase());
+    if (existingPage) {
+      throw new Error('Page name already exists');
     }
     
     try {
       const page = await room.collection('page').create({
-        name: pageName.trim(),
-        name_lower: sanitizedName, // Store lowercase version for unique constraint
+        name: pageName,
         content: '<h1>Welcome to your new page!</h1>'
       });
       
@@ -108,10 +100,6 @@ const App = () => {
       setEditorContent(page.content);
       return page;
     } catch (error) {
-      // Check if error is due to duplicate name
-      if (error.message.includes('unique') || error.message.includes('duplicate')) {
-        throw new Error('A page with this name already exists');
-      }
       console.error('Error creating page:', error);
       throw new Error('Failed to create page. Please try again.');
     }
@@ -152,9 +140,6 @@ const App = () => {
 
   const handlePageSelect = (page) => {
     try {
-      if (currentPage) {
-        setPageHistory(prev => [...prev, currentPage]); // Store current page in history
-      }
       setCurrentPage(page);
       setEditorContent(page.content);
       if (mode === 'code' && aceEditorRef.current) {
@@ -166,15 +151,24 @@ const App = () => {
     }
   };
 
-  const handleBack = () => {
-    if (pageHistory.length > 0) {
-      const previousPage = pageHistory[pageHistory.length - 1];
-      setCurrentPage(previousPage);
-      setEditorContent(previousPage.content);
-      if (mode === 'code' && aceEditorRef.current) {
-        aceEditorRef.current.setValue(previousPage.content || '', -1);
+  const deletePage = async (pageId, event) => {
+    event.stopPropagation(); // Prevent triggering page selection
+    if (!pageId) return;
+    
+    try {
+      await room.collection('page').delete(pageId);
+      
+      // If we deleted the current page, clear the current page state
+      if (currentPage?.id === pageId) {
+        setCurrentPage(null);
+        setEditorContent('');
+        if (aceEditorRef.current) {
+          aceEditorRef.current.setValue('', -1);
+        }
       }
-      setPageHistory(prev => prev.slice(0, -1)); // Remove the page we're going back to
+    } catch (error) {
+      console.error('Error deleting page:', error);
+      alert('Failed to delete page. Please try again.');
     }
   };
 
@@ -244,15 +238,6 @@ const App = () => {
           <div className="browser-button minimize"></div>
           <div className="browser-button maximize"></div>
         </div>
-        <div className="browser-nav-buttons">
-          <button 
-            className="nav-button"
-            onClick={handleBack}
-            disabled={pageHistory.length === 0}
-          >
-            <i className="fas fa-arrow-left"></i>
-          </button>
-        </div>
         <div className="url-bar">
           <i className="fas fa-lock secure-icon"></i>
           <span className="url-text">
@@ -276,8 +261,17 @@ const App = () => {
                 className={`page-item ${currentPage?.id === page.id ? 'active' : ''}`}
                 onClick={() => handlePageSelect(page)}
               >
-                <span>{page.name}</span>
-                <small>by {page.username}</small>
+                <div className="page-item-content">
+                  <span>{page.name}</span>
+                  <small>by {page.username}</small>
+                </div>
+                <button 
+                  className="delete-button"
+                  onClick={(e) => deletePage(page.id, e)}
+                  title="Delete page"
+                >
+                  <i className="fas fa-trash"></i>
+                </button>
               </li>
             ))}
           </ul>
