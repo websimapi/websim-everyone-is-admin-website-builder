@@ -85,14 +85,21 @@ const App = () => {
       throw new Error('Page name is required');
     }
 
-    const existingPage = pages.find(p => p.name.toLowerCase() === pageName.toLowerCase());
-    if (existingPage) {
-      throw new Error('Page name already exists');
+    const sanitizedName = pageName.trim().toLowerCase();
+
+    // Check if page exists by filtering the collection
+    const existingPages = room.collection('page')
+      .filter({ name_lower: sanitizedName })
+      .getList();
+
+    if (existingPages && existingPages.length > 0) {
+      throw new Error('A page with this name already exists');
     }
     
     try {
       const page = await room.collection('page').create({
-        name: pageName,
+        name: pageName.trim(),
+        name_lower: sanitizedName, // Store lowercase version for unique constraint
         content: '<h1>Welcome to your new page!</h1>'
       });
       
@@ -100,6 +107,10 @@ const App = () => {
       setEditorContent(page.content);
       return page;
     } catch (error) {
+      // Check if error is due to duplicate name
+      if (error.message.includes('unique') || error.message.includes('duplicate')) {
+        throw new Error('A page with this name already exists');
+      }
       console.error('Error creating page:', error);
       throw new Error('Failed to create page. Please try again.');
     }
