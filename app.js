@@ -85,21 +85,14 @@ const App = () => {
       throw new Error('Page name is required');
     }
 
-    const sanitizedName = pageName.trim().toLowerCase();
-
-    // Check if page exists by filtering the collection
-    const existingPages = room.collection('page')
-      .filter({ name_lower: sanitizedName })
-      .getList();
-
-    if (existingPages && existingPages.length > 0) {
-      throw new Error('A page with this name already exists');
+    const existingPage = pages.find(p => p.name.toLowerCase() === pageName.toLowerCase());
+    if (existingPage) {
+      throw new Error('Page name already exists');
     }
     
     try {
       const page = await room.collection('page').create({
-        name: pageName.trim(),
-        name_lower: sanitizedName, // Store lowercase version for unique constraint
+        name: pageName,
         content: '<h1>Welcome to your new page!</h1>'
       });
       
@@ -107,10 +100,6 @@ const App = () => {
       setEditorContent(page.content);
       return page;
     } catch (error) {
-      // Check if error is due to duplicate name
-      if (error.message.includes('unique') || error.message.includes('duplicate')) {
-        throw new Error('A page with this name already exists');
-      }
       console.error('Error creating page:', error);
       throw new Error('Failed to create page. Please try again.');
     }
@@ -159,6 +148,27 @@ const App = () => {
       setSidebarOpen(false);
     } catch (error) {
       console.error('Error selecting page:', error);
+    }
+  };
+
+  const deletePage = async (pageId, event) => {
+    event.stopPropagation(); // Prevent triggering page selection
+    if (!pageId) return;
+    
+    try {
+      await room.collection('page').delete(pageId);
+      
+      // If we deleted the current page, clear the current page state
+      if (currentPage?.id === pageId) {
+        setCurrentPage(null);
+        setEditorContent('');
+        if (aceEditorRef.current) {
+          aceEditorRef.current.setValue('', -1);
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting page:', error);
+      alert('Failed to delete page. Please try again.');
     }
   };
 
@@ -251,8 +261,17 @@ const App = () => {
                 className={`page-item ${currentPage?.id === page.id ? 'active' : ''}`}
                 onClick={() => handlePageSelect(page)}
               >
-                <span>{page.name}</span>
-                <small>by {page.username}</small>
+                <div className="page-item-content">
+                  <span>{page.name}</span>
+                  <small>by {page.username}</small>
+                </div>
+                <button 
+                  className="delete-button"
+                  onClick={(e) => deletePage(page.id, e)}
+                  title="Delete page"
+                >
+                  <i className="fas fa-trash"></i>
+                </button>
               </li>
             ))}
           </ul>
