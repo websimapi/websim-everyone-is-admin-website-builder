@@ -47,6 +47,20 @@ const App = () => {
     }
   }, [mode]);
 
+  // Update editor content when switching modes or pages
+  useEffect(() => {
+    if (mode === 'code' && currentPage) {
+      // Wait for Ace editor to be initialized
+      setTimeout(() => {
+        if (aceEditorRef.current) {
+          aceEditorRef.current.setValue(currentPage.content || '', -1);
+          // Ensure editor is properly sized
+          aceEditorRef.current.resize();
+        }
+      }, 100);
+    }
+  }, [mode, currentPage]);
+
   // Subscribe to pages collection
   useEffect(() => {
     let unsubscribe;
@@ -89,12 +103,17 @@ const App = () => {
     if (!currentPage) return;
     
     try {
-      const content = mode === 'code' ? 
-        aceEditorRef.current?.getValue() : 
-        editorContent;
+      let contentToSave;
+      if (mode === 'code' && aceEditorRef.current) {
+        contentToSave = aceEditorRef.current.getValue();
+        // Update the preview content as well
+        setEditorContent(contentToSave);
+      } else {
+        contentToSave = editorContent;
+      }
         
       await room.collection('page').update(currentPage.id, {
-        content
+        content: contentToSave
       });
     } catch (error) {
       console.error('Error saving page:', error);
@@ -102,12 +121,20 @@ const App = () => {
     }
   };
 
+  const handleModeChange = (newMode) => {
+    if (newMode === 'preview' && mode === 'code' && aceEditorRef.current) {
+      // When switching from code to preview, update the preview content
+      setEditorContent(aceEditorRef.current.getValue());
+    }
+    setMode(newMode);
+  };
+
   const handlePageSelect = (page) => {
     try {
       setCurrentPage(page);
       setEditorContent(page.content);
-      if (aceEditorRef.current) {
-        aceEditorRef.current.setValue(page.content, -1);
+      if (mode === 'code' && aceEditorRef.current) {
+        aceEditorRef.current.setValue(page.content || '', -1);
       }
       setSidebarOpen(false);
     } catch (error) {
@@ -220,13 +247,13 @@ const App = () => {
                 <div className="editor-modes">
                   <button
                     className={`mode-button ${mode === 'preview' ? 'active' : ''}`}
-                    onClick={() => setMode('preview')}
+                    onClick={() => handleModeChange('preview')}
                   >
                     Preview
                   </button>
                   <button
                     className={`mode-button ${mode === 'code' ? 'active' : ''}`}
-                    onClick={() => setMode('code')}
+                    onClick={() => handleModeChange('code')}
                   >
                     Code
                   </button>
