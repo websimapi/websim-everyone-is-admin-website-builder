@@ -7,8 +7,21 @@ const App = () => {
   const [editorContent, setEditorContent] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mode, setMode] = useState('preview'); // 'preview' or 'code'
+  const [showNewPageForm, setShowNewPageForm] = useState(false);
   const editorRef = useRef(null);
   const aceEditorRef = useRef(null);
+
+  // Request fullscreen on component mount
+  useEffect(() => {
+    const elem = document.documentElement;
+    if (elem.requestFullscreen) {
+      elem.requestFullscreen();
+    } else if (elem.webkitRequestFullscreen) {
+      elem.webkitRequestFullscreen();
+    } else if (elem.msRequestFullscreen) {
+      elem.msRequestFullscreen();
+    }
+  }, []);
 
   useEffect(() => {
     // Initialize Ace editor
@@ -79,25 +92,48 @@ const App = () => {
         await createPage(name);
         setName('');
         setError('');
+        setShowNewPageForm(false);
       } catch (err) {
         setError(err.message);
       }
     };
 
+    if (!showNewPageForm) return null;
+
     return (
-      <form onSubmit={handleSubmit} className="new-page-form">
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Enter page name"
-          className="input"
-        />
-        {error && <div className="error">{error}</div>}
-        <button type="submit" className="button">
-          <i className="fas fa-plus"></i> Create Page
-        </button>
-      </form>
+      <div style={{ 
+        padding: 20, 
+        background: 'white', 
+        borderRadius: 8,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        maxWidth: 400,
+        margin: '40px auto'
+      }}>
+        <h2 style={{ marginBottom: 16 }}>Create New Page</h2>
+        <form onSubmit={handleSubmit} className="new-page-form">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Enter page name"
+            className="input"
+            autoFocus
+          />
+          {error && <div className="error">{error}</div>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="submit" className="button">
+              <i className="fas fa-plus"></i> Create Page
+            </button>
+            <button 
+              type="button" 
+              className="button secondary"
+              onClick={() => setShowNewPageForm(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
     );
   };
 
@@ -118,11 +154,16 @@ const App = () => {
             {currentPage ? `website-builder.app/${currentPage.name}` : 'website-builder.app'}
           </span>
         </div>
+        <button 
+          className="new-page-button"
+          onClick={() => setShowNewPageForm(true)}
+        >
+          <i className="fas fa-plus"></i> New Page
+        </button>
       </div>
       
       <div className="main-content">
         <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
-          <NewPageForm />
           <ul className="pages-list">
             {pages.map(page => (
               <li
@@ -138,42 +179,48 @@ const App = () => {
         </div>
 
         <div className="editor-container">
-          <div className="editor-toolbar">
-            <div className="editor-modes">
-              <button
-                className={`mode-button ${mode === 'preview' ? 'active' : ''}`}
-                onClick={() => setMode('preview')}
-              >
-                Preview
-              </button>
-              <button
-                className={`mode-button ${mode === 'code' ? 'active' : ''}`}
-                onClick={() => setMode('code')}
-              >
-                Code
-              </button>
-            </div>
-            <button className="button" onClick={savePage}>
-              <i className="fas fa-save"></i> Save
-            </button>
-          </div>
+          {showNewPageForm ? (
+            <NewPageForm />
+          ) : (
+            <>
+              <div className="editor-toolbar">
+                <div className="editor-modes">
+                  <button
+                    className={`mode-button ${mode === 'preview' ? 'active' : ''}`}
+                    onClick={() => setMode('preview')}
+                  >
+                    Preview
+                  </button>
+                  <button
+                    className={`mode-button ${mode === 'code' ? 'active' : ''}`}
+                    onClick={() => setMode('code')}
+                  >
+                    Code
+                  </button>
+                </div>
+                <button className="button" onClick={savePage}>
+                  <i className="fas fa-save"></i> Save
+                </button>
+              </div>
 
-          {mode === 'preview' && currentPage && (
-            <iframe
-              className="preview-iframe"
-              srcDoc={editorContent}
-              title="Preview"
-            />
-          )}
-          
-          {mode === 'code' && currentPage && (
-            <div ref={editorRef} className="code-editor"></div>
-          )}
-          
-          {!currentPage && (
-            <div style={{ padding: 20, textAlign: 'center' }}>
-              Create a new page or select an existing one to begin editing
-            </div>
+              {mode === 'preview' && currentPage && (
+                <iframe
+                  className="preview-iframe"
+                  srcDoc={editorContent}
+                  title="Preview"
+                />
+              )}
+              
+              {mode === 'code' && currentPage && (
+                <div ref={editorRef} className="code-editor"></div>
+              )}
+              
+              {!currentPage && !showNewPageForm && (
+                <div style={{ padding: 20, textAlign: 'center' }}>
+                  Create a new page or select an existing one to begin editing
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

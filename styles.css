@@ -172,6 +172,24 @@ body {
   margin-bottom: 8px;
 }
 
+.new-page-button {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  color: #666;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.new-page-button:hover {
+  background: #f5f5f5;
+}
+
 @media (max-width: 768px) {
   .sidebar {
     width: 100%;
