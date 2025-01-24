@@ -11,75 +11,108 @@ const App = () => {
   const editorRef = useRef(null);
   const aceEditorRef = useRef(null);
 
-  // Request fullscreen on component mount
-  useEffect(() => {
+  // Remove automatic fullscreen request since it requires user interaction
+  const requestFullscreen = () => {
     const elem = document.documentElement;
-    if (elem.requestFullscreen) {
-      elem.requestFullscreen();
-    } else if (elem.webkitRequestFullscreen) {
-      elem.webkitRequestFullscreen();
-    } else if (elem.msRequestFullscreen) {
-      elem.msRequestFullscreen();
+    try {
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen();
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+      } else if (elem.msRequestFullscreen) {
+        elem.msRequestFullscreen();
+      }
+    } catch (error) {
+      console.warn('Fullscreen request failed:', error);
     }
-  }, []);
+  };
 
   useEffect(() => {
     // Initialize Ace editor
-    if (mode === 'code' && !aceEditorRef.current) {
-      aceEditorRef.current = ace.edit(editorRef.current);
-      aceEditorRef.current.setTheme('ace/theme/monokai');
-      aceEditorRef.current.session.setMode('ace/mode/html');
-      aceEditorRef.current.setOptions({
-        fontSize: '14px',
-        showPrintMargin: false,
-        showGutter: true,
-        highlightActiveLine: true,
-        wrap: true
-      });
+    if (mode === 'code' && !aceEditorRef.current && editorRef.current) {
+      try {
+        aceEditorRef.current = ace.edit(editorRef.current);
+        aceEditorRef.current.setTheme('ace/theme/monokai');
+        aceEditorRef.current.session.setMode('ace/mode/html');
+        aceEditorRef.current.setOptions({
+          fontSize: '14px',
+          showPrintMargin: false,
+          showGutter: true,
+          highlightActiveLine: true,
+          wrap: true
+        });
+      } catch (error) {
+        console.error('Error initializing Ace editor:', error);
+      }
     }
   }, [mode]);
 
   // Subscribe to pages collection
   useEffect(() => {
-    return room.collection('page').subscribe(newPages => {
-      setPages(newPages);
-    });
+    let unsubscribe;
+    try {
+      unsubscribe = room.collection('page').subscribe(newPages => {
+        setPages(newPages);
+      });
+    } catch (error) {
+      console.error('Error subscribing to pages:', error);
+    }
+    return () => unsubscribe?.();
   }, []);
 
   const createPage = async (pageName) => {
-    const existingPage = pages.find(p => p.name === pageName);
+    if (!pageName?.trim()) {
+      throw new Error('Page name is required');
+    }
+
+    const existingPage = pages.find(p => p.name.toLowerCase() === pageName.toLowerCase());
     if (existingPage) {
       throw new Error('Page name already exists');
     }
     
-    const page = await room.collection('page').create({
-      name: pageName,
-      content: '<h1>Welcome to your new page!</h1>'
-    });
-    
-    setCurrentPage(page);
-    setEditorContent(page.content);
+    try {
+      const page = await room.collection('page').create({
+        name: pageName,
+        content: '<h1>Welcome to your new page!</h1>'
+      });
+      
+      setCurrentPage(page);
+      setEditorContent(page.content);
+      return page;
+    } catch (error) {
+      console.error('Error creating page:', error);
+      throw new Error('Failed to create page. Please try again.');
+    }
   };
 
   const savePage = async () => {
     if (!currentPage) return;
     
-    const content = mode === 'code' ? 
-      aceEditorRef.current.getValue() : 
-      editorContent;
-      
-    await room.collection('page').update(currentPage.id, {
-      content
-    });
+    try {
+      const content = mode === 'code' ? 
+        aceEditorRef.current?.getValue() : 
+        editorContent;
+        
+      await room.collection('page').update(currentPage.id, {
+        content
+      });
+    } catch (error) {
+      console.error('Error saving page:', error);
+      alert('Failed to save page. Please try again.');
+    }
   };
 
   const handlePageSelect = (page) => {
-    setCurrentPage(page);
-    setEditorContent(page.content);
-    if (aceEditorRef.current) {
-      aceEditorRef.current.setValue(page.content);
+    try {
+      setCurrentPage(page);
+      setEditorContent(page.content);
+      if (aceEditorRef.current) {
+        aceEditorRef.current.setValue(page.content, -1);
+      }
+      setSidebarOpen(false);
+    } catch (error) {
+      console.error('Error selecting page:', error);
     }
-    setSidebarOpen(false);
   };
 
   const NewPageForm = () => {
