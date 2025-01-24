@@ -8,8 +8,34 @@ const App = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mode, setMode] = useState('preview'); // 'preview' or 'code'
   const [showNewPageForm, setShowNewPageForm] = useState(false);
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
   const editorRef = useRef(null);
   const aceEditorRef = useRef(null);
+  const sidebarRef = useRef(null);
+
+  // Minimum swipe distance (in px)
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    
+    if (isLeftSwipe) {
+      setSidebarOpen(false);
+    }
+  };
 
   // Initialize or destroy Ace editor based on mode
   useEffect(() => {
@@ -250,10 +276,26 @@ const App = () => {
         >
           <i className="fas fa-plus"></i> New Page
         </button>
-      </div>
+      </div)
       
       <div className="main-content">
-        <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div 
+          className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`} 
+          onClick={() => setSidebarOpen(false)}
+        ></div>
+        <div 
+          ref={sidebarRef}
+          className={`sidebar ${sidebarOpen ? 'open' : ''}`}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          <button 
+            className="back-button" 
+            onClick={() => setSidebarOpen(false)}
+          >
+            <i className="fas fa-times"></i>
+          </button>
           <ul className="pages-list">
             {pages.map(page => (
               <li
