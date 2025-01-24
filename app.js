@@ -276,7 +276,7 @@ const App = () => {
         >
           <i className="fas fa-plus"></i> New Page
         </button>
-      </div)
+      </div>
       
       <div className="main-content">
         <div 
@@ -356,7 +356,7 @@ const App = () => {
                 <div 
                   ref={editorRef} 
                   className="code-editor"
-                  key={`editor-${currentPage.id}`} // Force new editor instance on page change
+                  key={`editor-${currentPage.id}`}
                 ></div>
               )}
               
